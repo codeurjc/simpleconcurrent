@@ -203,6 +203,8 @@ public class SimpleConcurrent {
 
 	public static void startThreadsAndWait() {
 
+		long startTime = System.currentTimeMillis();
+		
 		for (ThreadInfo ti : threads.values()) {
 			ti.getThread().start();
 		}
@@ -215,6 +217,9 @@ public class SimpleConcurrent {
 			} catch (InterruptedException e) {
 			}
 		}
+		
+		long duration = System.currentTimeMillis() - startTime;
+		System.out.println("\nConcurrent code spend "+duration+" millis");
 	}
 
 	public static void println(String text) {
