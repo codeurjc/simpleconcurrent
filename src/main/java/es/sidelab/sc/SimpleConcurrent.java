@@ -17,29 +17,20 @@ import java.util.concurrent.locks.ReentrantLock;
  * and facilities.
  * 
  * @author Micael Gallego
- * @version 0.3
+ * @version 0.5
  * 
  */
 public class SimpleConcurrent {
 
 	private static class ThreadInfo {
 
-		private String threadName;
 		private int threadNum;
 		private Thread thread;
 
 		public ThreadInfo(String threadName, int threadNum, Thread thread) {
-			this.threadName = threadName;
+
 			this.threadNum = threadNum;
 			this.thread = thread;
-		}
-
-		public String getThreadName() {
-			return threadName;
-		}
-
-		public void setThreadName(String threadName) {
-			this.threadName = threadName;
 		}
 
 		public int getThreadNum() {
@@ -57,24 +48,50 @@ public class SimpleConcurrent {
 	private static final Map<String, Integer> numThreadsPerMethod = new HashMap<String, Integer>();
 	private static final ArrayList<String> spaces = new ArrayList<String>();
 
-	public static void createThread(final String methodName,
-			final Object... args) {
+	public static void createThread(final String methodName, final Object... args) {
 		createThread(methodName, args, 2);
 	}
 
-	private static void createThread(final String methodName,
-			final Object[] args, int stackLevel) {
+	private static void createThread(final String methodName, final Object[] args, int stackLevel) {
 
-		Class<?> clazz = null;
-		try {
-			clazz = Class
-					.forName(new RuntimeException().getStackTrace()[stackLevel]
-							.getClassName());
-		} catch (ClassNotFoundException e1) {
-			e1.printStackTrace();
-			System.exit(1);
+		Class<?> clazz = getCallingClass(stackLevel+1);
+
+		Method method = getMethod(methodName, clazz);
+
+		String threadName;
+		Integer num = numThreadsPerMethod.get(methodName);
+		if (num == null){
+			
+			numThreadsPerMethod.put(methodName, 0);
+			threadName = methodName;
+			num = 0;
+			
+		} else {
+			
+			if (num == 0) {
+				ThreadInfo ti = threads.remove(methodName);
+				String firstThreadName = methodName + "_0";
+				ti.getThread().setName(firstThreadName);
+				threads.put(firstThreadName, ti);
+			}
+			num = num + 1;
+			numThreadsPerMethod.put(methodName, num);
+			threadName = methodName + "_" + num;
 		}
 
+		final Thread t = createThread(threadName, method, args);
+
+		threads.put(threadName, new ThreadInfo(threadName, threads.size(), t));
+
+		if (spaces.size() == 0) {
+			spaces.add("");
+		} else {
+			spaces.add(spaces.get(spaces.size() - 1) + "        ");
+		}
+
+	}
+
+	private static Method getMethod(final String methodName, Class<?> clazz) {
 		Method method = null;
 		for (Method auxMethod : clazz.getMethods()) {
 			if (auxMethod.getName().equals(methodName)) {
@@ -84,53 +101,35 @@ public class SimpleConcurrent {
 		}
 
 		if (method == null) {
-			throw new RuntimeException("Method \"" + methodName
-					+ "\" not found in class " + clazz.getName());
-		} else {
-
-			String threadName;
-			Integer num = numThreadsPerMethod.get(methodName);
-			if (num == null) {
-				numThreadsPerMethod.put(methodName, 1);
-				threadName = methodName;
-				num = 1;
-			} else {
-				if (num == 1) {
-					ThreadInfo ti = threads.remove(methodName);
-					String firstThreadName = methodName + "_0";
-					ti.setThreadName(firstThreadName);
-					ti.getThread().setName(firstThreadName);
-					threads.put(firstThreadName, ti);
-				}
-				num = num + 1;
-				numThreadsPerMethod.put(methodName, num);
-				threadName = methodName + "_" + num;
-			}
-
-			final Thread t = createThread(threadName, method, args);
-
-			threads.put(threadName, new ThreadInfo(threadName, threads.size(),
-					t));
-
-			if (spaces.size() == 0) {
-				spaces.add("");
-			} else {
-				spaces.add(spaces.get(spaces.size() - 1) + "        ");
-			}
+			throw new RuntimeException(
+					"Method \"" + methodName + "\" not found in class " + clazz.getName());
 		}
+		return method;
 	}
 
-	public static void createThreads(int numThreads, String methodName,
-			Object... args) {
+	private static Class<?> getCallingClass(int stackLevel) {
+		Class<?> clazz = null;
+		try {
+			clazz = Class
+					.forName(new RuntimeException().getStackTrace()[stackLevel].getClassName());
+		} catch (ClassNotFoundException e1) {
+			e1.printStackTrace();
+			System.exit(1);
+		}
+		return clazz;
+	}
+
+	public static void createThreads(int numThreads, String methodName, Object... args) {
 		for (int i = 0; i < numThreads; i++) {
 			createThread(methodName, args, 2);
 		}
 	}
 
-	private static Thread createThread(String threadName,
-			final Method execMethod, final Object... args) {
+	private static Thread createThread(String threadName, final Method execMethod,
+			final Object... args) {
 
 		final Thread t = new Thread(threadName) {
+			@SuppressWarnings("deprecation")
 			public void run() {
 				try {
 					startGate.await();
@@ -142,8 +141,7 @@ public class SimpleConcurrent {
 
 						for (ThreadInfo ti : threads.values()) {
 							Thread thread = ti.getThread();
-							if (thread != Thread.currentThread()
-									&& thread.isAlive()) {
+							if (thread != Thread.currentThread() && thread.isAlive()) {
 								thread.stop();
 							}
 						}
@@ -191,11 +189,12 @@ public class SimpleConcurrent {
 
 		ReentrantLock lock = locks.get(mutexId);
 		if (lock == null) {
-			throw new RuntimeException(String.format(
-					"MutexId: \"%s\" does not exist.", mutexId));
+			throw new RuntimeException(String.format("MutexId: \"%s\" does not exist.", mutexId));
 		} else {
-			if(!lock.isHeldByCurrentThread()){
-				throw new RuntimeException("The thread \""+getThreadName()+"\" is trying to exit of mutex \""+mutexId+"\" but other thread is in the critical section");
+			if (!lock.isHeldByCurrentThread()) {
+				throw new RuntimeException(
+						"The thread \"" + getThreadName() + "\" is trying to exit of mutex \""
+								+ mutexId + "\" but other thread is in the critical section");
 			}
 			lock.unlock();
 		}
@@ -204,7 +203,7 @@ public class SimpleConcurrent {
 	public static void startThreadsAndWait() {
 
 		long startTime = System.currentTimeMillis();
-		
+
 		for (ThreadInfo ti : threads.values()) {
 			ti.getThread().start();
 		}
@@ -217,9 +216,9 @@ public class SimpleConcurrent {
 			} catch (InterruptedException e) {
 			}
 		}
-		
+
 		long duration = System.currentTimeMillis() - startTime;
-		System.out.println("\nConcurrent code spend "+duration+" millis");
+		System.out.println("\nConcurrent code spend " + duration + " millis");
 	}
 
 	public static void println(String text) {
@@ -227,7 +226,7 @@ public class SimpleConcurrent {
 		System.out.println(text);
 		sleepRandom(10);
 	}
-	
+
 	public static void print(String text) {
 		sleepRandom(10);
 		System.out.print(text);
@@ -239,8 +238,7 @@ public class SimpleConcurrent {
 	}
 
 	public static void printlnI(String text) {
-		int threadNum = threads.get(Thread.currentThread().getName())
-				.getThreadNum();
+		int threadNum = threads.get(Thread.currentThread().getName()).getThreadNum();
 		println(spaces.get(threadNum) + text);
 	}
 
