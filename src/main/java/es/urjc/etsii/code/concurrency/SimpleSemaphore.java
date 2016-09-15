@@ -1,4 +1,4 @@
-package es.sidelab.sc;
+package es.urjc.etsii.code.concurrency;
 
 public class SimpleSemaphore {
 

@@ -1,4 +1,4 @@
-package es.sidelab.sc;
+package es.urjc.etsii.code.concurrency;
 
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
@@ -17,7 +17,7 @@ import java.util.concurrent.locks.ReentrantLock;
  * and facilities.
  * 
  * @author Micael Gallego
- * @version 0.5
+ * @version 0.6
  * 
  */
 public class SimpleConcurrent {
